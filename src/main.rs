@@ -16,7 +16,10 @@ use termcolor::{Color, ColorChoice, ColorSpec, WriteColor};
 
 #[derive(StructOpt)]
 #[structopt(
-    raw(global_settings = "&[AppSettings::VersionlessSubcommands, AppSettings::DisableHelpSubcommand]",
+    raw(global_settings = "&[
+            AppSettings::DisableHelpSubcommand,
+            AppSettings::InferSubcommands,
+            AppSettings::VersionlessSubcommands]",
         set_term_width = "80")
 )]
 struct Args {
@@ -62,7 +65,7 @@ struct Args {
 
     /// Command.
     #[structopt(subcommand)]
-    command: Cmd
+    command: Option<Cmd>
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, StructOpt)]
@@ -327,11 +330,15 @@ fn main() {
         }
     };
 
-    if command == Cmd::Find {
-        println!("{}", new_toolchain);
+    let command = match command {
+        None | Some(Cmd::Find) => {
+            println!("{}", new_toolchain);
 
-        std::process::exit(0);
-    }
+            std::process::exit(0);
+        },
+
+        Some(command) => command
+    };
 
     // Install toolchain
     status!(success, "Found valid toolchain: ", &new_toolchain, ".");

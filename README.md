@@ -41,8 +41,6 @@ OPTIONS:
     -t, --toolchain <toolchain>         Target toolchain.
 
 SUBCOMMANDS:
-    find       Find the latest available release that matches the current
-               components.
     install    Find, download and install the latest available release that
                matches the current components.
     replace    Find and download the latest available release that matches
@@ -95,14 +93,14 @@ $ rustup-find install
 ```bash
 # This command will:
 #  - Find the correct release, and return it.
-$ rustup-find --toolchain nightly-x86_64-pc-windows-msvc find
+$ rustup-find --toolchain nightly-x86_64-pc-windows-msvc
 
 nightly-2018-08-17-x86_64-pc-windows-msvc
 ```
 
 ### Example failure
 ```bash
-$ rustup-find --days 5 --verbose find
+$ rustup-find --days 5 --verbose
 
 [i] Channel: nightly.
 [i] Target: x86_64-pc-windows-gnu.
