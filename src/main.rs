@@ -245,16 +245,16 @@ fn main() {
     }, ".");
     
     // Find latest version that matches the needed components
-    let mut date = chrono::Utc::now() - chrono::Duration::days(offset as i64 + 1);
+    let mut date = chrono::Utc::now() - chrono::Duration::days(offset as i64 - 1);
 
     let one_day = chrono::Duration::days(1);
-    let start_date = date - one_day;
+    let start_date = date;
 
     let new_toolchain = 'main: loop {
         date = date - one_day;
 
         if start_date - date > chrono::Duration::days(days as _) {
-            fail!(5, "Could not find a match in the last 30 days.");
+            fail!(5, "Could not find a match in the last ", days, " days.");
         }
 
         let date_str = date.format("%Y-%m-%d");
