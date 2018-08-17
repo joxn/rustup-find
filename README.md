@@ -41,6 +41,8 @@ OPTIONS:
     -t, --toolchain <toolchain>         Target toolchain.
 
 SUBCOMMANDS:
+    find       Find the latest available release that matches the current
+               components.
     install    Find, download and install the latest available release that
                matches the current components.
     replace    Find and download the latest available release that matches
@@ -52,7 +54,8 @@ If the `toolchain` is not provided, it will be resolved using `rustup toolchain 
 
 ## Examples
 
-As a `` user, releases of `rls-preview` are quite rare, which is why I created this software.
+As a `x86_64-pc-windows-gnu` user, releases of `rls-preview` are quite rare,
+which is why I created this app.
 
 Here are a different examples of how this binary can be used.
 
