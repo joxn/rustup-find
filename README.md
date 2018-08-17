@@ -1,7 +1,7 @@
 rustup-find
 ===========
 
-A rust binary that automatically finds the latest version of Rust that has all
+A Rust binary that automatically finds the latest version of Rust that has all
 the currently installed components.
 
 ## Usage
@@ -51,3 +51,66 @@ SUBCOMMANDS:
 ```
 
 If the `toolchain` is not provided, it will be resolved using `rustup toolchain list | grep default`.
+
+## Examples
+
+As a `` user, releases of `rls-preview` are quite rare, which is why I created this software.
+
+Here are a different examples of how this binary can be used.
+
+
+### Install latest release that matches the current default toolchain and its components
+```bash
+# This command will:
+#  - Find the correct release.
+#  - Install it using `rustup toolchain install`.
+#  - Move the newly installed toolchain from `channel-date-target` to `channel-target`,
+#    overriding the previous one.
+$ rustup-find --verbose --offset 25 replace
+
+[i] Channel: nightly.
+[i] Target: x86_64-pc-windows-gnu.
+[i] Required components: cargo, rls-preview, rust-analysis, rust-docs, rust-mingw, rust-std, rustc.
+[i] Some components were missing in 2018-07-21; trying previous day...
+[i] Some components were missing in 2018-07-20; trying previous day...
+[+] Found valid toolchain: nightly-2018-07-19-x86_64-pc-windows-gnu.
+[i] Installing toolchain...
+[+] Installed toolchain nightly-2018-07-19-x86_64-pc-windows-gnu.
+[i] Replacing previous toolchain nightly-pc-windows-gnu...
+[+] Replaced previous toolchain nightly-pc-windows-gnu by nightly-2018-07-19-x86_64-pc-windows-gnu.
+```
+
+### Install latest release that matches the current default toolchain and its components
+```bash
+# This command will:
+#  - Find the correct release.
+#  - Install it using `rustup toolchain install`.
+$ rustup-find install
+
+[+] Found valid toolchain: nightly-2018-07-19-x86_64-pc-windows-gnu.
+[+] Installed toolchain nightly-2018-07-19-x86_64-pc-windows-gnu.
+```
+
+### Find latest release that matches the given toolchain and its components
+```bash
+# This command will:
+#  - Find the correct release, and return it.
+$ rustup-find --toolchain nightly-x86_64-pc-windows-msvc find
+
+nightly-2018-08-17-x86_64-pc-windows-msvc
+```
+
+### Example failure
+```bash
+$ rustup-find --days 5 --verbose
+
+[i] Channel: nightly.
+[i] Target: x86_64-pc-windows-gnu.
+[i] Required components: cargo, rls-preview, rust-analysis, rust-docs, rust-mingw, rust-std, rustc.
+[i] Some components were missing in 2018-08-17; trying previous day...
+[i] Some components were missing in 2018-08-16; trying previous day...
+[i] Some components were missing in 2018-08-15; trying previous day...
+[i] Some components were missing in 2018-08-14; trying previous day...
+[i] Some components were missing in 2018-08-13; trying previous day...
+[-] Could not find a match in the last 5 days.
+```
