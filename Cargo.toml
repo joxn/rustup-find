@@ -1,6 +1,6 @@
 [package]
 name    = "rustup-find"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Grégoire Geis <git@gregoirege.is>"]
 description = """
   Use rustup to automatically find and/or install the latest Rust version that

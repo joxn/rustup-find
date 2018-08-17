@@ -1,4 +1,5 @@
 #![deny(warnings)]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy))]
 
 extern crate chrono;
 extern crate dirs;
@@ -16,11 +17,9 @@ use termcolor::{Color, ColorChoice, ColorSpec, WriteColor};
 
 #[derive(StructOpt)]
 #[structopt(
-    raw(global_settings = "&[
-            AppSettings::DisableHelpSubcommand,
-            AppSettings::InferSubcommands,
-            AppSettings::VersionlessSubcommands]",
-        set_term_width = "80")
+    raw(global_settings = "&[AppSettings::DisableHelpSubcommand,
+                             AppSettings::InferSubcommands,
+                             AppSettings::VersionlessSubcommands]")
 )]
 struct Args {
     /// Whether we should log more informations than needed.
@@ -88,7 +87,10 @@ enum Cmd {
     }
 }
 
-
+#[cfg_attr(feature = "cargo-clippy",
+           allow(cyclomatic_complexity))] // Allows us to have macros that use the parsed arguments.
+#[cfg_attr(feature = "cargo-clippy",
+           allow(write_literal))] // Necessary for the status! macro.
 fn main() {
     let Args {
         command,
@@ -279,7 +281,7 @@ fn main() {
                 
                 'match_components: loop {
                     if let Some(line) = lines.next() {
-                        if !line.starts_with("[pkg.") || !line.ends_with("]") {
+                        if !line.starts_with("[pkg.") || !line.ends_with(']') {
                             continue
                         }
 
@@ -309,7 +311,7 @@ fn main() {
                             if remove {
                                 components.swap_remove(i);
 
-                                if components.len() == 0 {
+                                if components.is_empty() {
                                     break 'match_components
                                 }
                             } else {
@@ -421,7 +423,7 @@ fn parse_toolchain(toolchain: &str) -> Result<(String, String), &'static str> {
 }
 
 fn parse_path(path: &str) -> Result<PathBuf, &'static str> {
-    if path.starts_with("~") {
+    if path.starts_with('~') {
         let home = dirs::home_dir().ok_or("Unable to resolve path.")?;
 
         Ok(home.join(&path[2..]))
