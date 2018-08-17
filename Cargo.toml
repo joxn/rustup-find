@@ -1,0 +1,20 @@
+[package]
+name    = "rustup-find"
+version = "0.1.0"
+authors = ["Grégoire Geis <git@gregoirege.is>"]
+description = """
+  Use rustup to automatically find and/or install the latest Rust version that
+  supports all the currently installed components.
+"""
+
+homepage   = "https://github.com/6A/rustup-find"
+repository = "https://github.com/6A/rustup-find"
+readme     = "README.md"
+license    = "MIT"
+
+[dependencies]
+chrono    = "0.4.5"
+dirs      = "1.0.3"
+reqwest   = "0.8.8"
+structopt = "0.2.10"
+termcolor = "1.0.1"

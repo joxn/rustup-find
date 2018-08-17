@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug",
+      "preLaunchTask": "cargo build",
+      "type": "gdb",
+      "request": "launch",
+      "target": "./target/debug/rustup-find",
+      "arguments": "--verbose find",
+      "cwd": "${workspaceRoot}"
+    }
+  ]
+}
