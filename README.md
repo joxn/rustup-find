@@ -102,7 +102,7 @@ nightly-2018-08-17-x86_64-pc-windows-msvc
 
 ### Example failure
 ```bash
-$ rustup-find --days 5 --verbose
+$ rustup-find --days 5 --verbose find
 
 [i] Channel: nightly.
 [i] Target: x86_64-pc-windows-gnu.
