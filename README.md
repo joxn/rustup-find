@@ -6,26 +6,26 @@ the currently installed components.
 
 ## Usage
 ```
-rustup-find 0.1.0
+rustup-find 0.1.2
 Grégoire Geis <git@gregoirege.is>
   Use rustup to automatically find and/or install the latest Rust version that
   supports all the currently installed components.
 
 USAGE:
-    rustup-find.exe [FLAGS] [OPTIONS] <SUBCOMMAND>
+    rustup-find.exe [FLAGS] [OPTIONS] [SUBCOMMAND]
 
 FLAGS:
-    -h, --help         Prints help information
-    -n, --no-colors    Whether colors should be disabled.
-    -q, --quiet        Whether nothing should be logged.
-    -s, --skip         Do not try to install already existing components.
-    -V, --version      Prints version information
-    -v, --verbose      Whether we should log more informations than needed.
+    -h, --help              Prints help information
+    -n, --no-colors         Whether colors should be disabled.
+    -q, --quiet             Whether nothing should be logged.
+    -s, --skip-installed    Do not try to install already installed components.
+    -V, --version           Prints version information
+    -v, --verbose           Whether we should log more informations than needed.
 
 OPTIONS:
     -c, --components <components>...
-            Components that must be available for a release to be considered
-            valid.
+            Space-separated list of components that must be available for a
+            release to be considered valid.
     -d, --days <days>
             Number of days to check starting at the given offset. [default: 30]
 
@@ -72,8 +72,8 @@ $ rustup-find --verbose --offset 25 replace
 [i] Channel: nightly.
 [i] Target: x86_64-pc-windows-gnu.
 [i] Required components: cargo, rls-preview, rust-analysis, rust-docs, rust-mingw, rust-std, rustc.
-[i] Some components were missing in 2018-07-21; trying previous day...
-[i] Some components were missing in 2018-07-20; trying previous day...
+[i] The following component was missing in 2018-07-21: rls-preview.
+[i] The following component was missing in 2018-07-20: rls-preview.
 [+] Found valid toolchain: nightly-2018-07-19-x86_64-pc-windows-gnu.
 [i] Installing toolchain...
 [+] Installed toolchain nightly-2018-07-19-x86_64-pc-windows-gnu.
@@ -108,10 +108,10 @@ $ rustup-find --days 5 --verbose
 [i] Channel: nightly.
 [i] Target: x86_64-pc-windows-gnu.
 [i] Required components: cargo, rls-preview, rust-analysis, rust-docs, rust-mingw, rust-std, rustc.
-[i] Some components were missing in 2018-08-17; trying previous day...
-[i] Some components were missing in 2018-08-16; trying previous day...
-[i] Some components were missing in 2018-08-15; trying previous day...
-[i] Some components were missing in 2018-08-14; trying previous day...
-[i] Some components were missing in 2018-08-13; trying previous day...
+[i] The following component was missing in 2018-08-26: rls-preview.
+[i] The following component was missing in 2018-08-25: rls-preview.
+[i] The following component was missing in 2018-08-24: rls-preview.
+[i] No components were available in 2018-08-23.
+[i] No components were available in 2018-08-22.
 [-] Could not find a match in the last 5 days.
 ```
