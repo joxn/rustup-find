@@ -1,6 +1,6 @@
 [package]
 name    = "rustup-find"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Grégoire Geis <git@gregoirege.is>"]
 description = """
   Use rustup to automatically find and/or install the latest Rust version that
@@ -13,8 +13,8 @@ readme     = "README.md"
 license    = "MIT"
 
 [dependencies]
-chrono    = "0.4.5"
+chrono    = "0.4.6"
 dirs      = "1.0.3"
 reqwest   = "0.8.8"
 structopt = "0.2.10"
-termcolor = "1.0.1"
+termcolor = "1.0.2"

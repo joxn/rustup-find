@@ -54,12 +54,12 @@ struct Args {
     #[structopt(short = "t", long = "toolchain", parse(try_from_str = "parse_toolchain"))]
     toolchain: Option<(String, String)>,
 
-    /// Components that must be available for a release to be considered valid.
+    /// Space-separated list of components that must be available for a release to be considered valid.
     #[structopt(short = "c", long = "components")]
     components: Vec<String>,
 
-    /// Do not try to install already existing components.
-    #[structopt(short = "s", long = "skip")]
+    /// Do not try to install already installed components.
+    #[structopt(short = "s", long = "skip-installed")]
     skip_components: bool,
 
     /// Command.
@@ -212,30 +212,32 @@ fn main() {
         let output = rustup!(output, "component", "list", "--toolchain", &toolchain);
 
         for line in output.lines() {
-            if line.ends_with(" (default)") {
+            let component = if line.ends_with(" (default)") {
                 let line = &line[.. line.len() - 10];
 
                 if line.ends_with(&target) {
-                    components.push(line[.. line.len() - target.len() - 1].to_string())
+                    &line[.. line.len() - target.len() - 1]
                 } else {
-                    components.push(line.to_string())
+                    line
                 }
             } else if line.ends_with(" (installed)") {
                 let line = &line[.. line.len() - 12];
 
                 if line.ends_with(&target) {
-                    components.push(line[.. line.len() - target.len() - 1].to_string())
+                    &line[.. line.len() - target.len() - 1]
                 } else {
-                    components.push(line.to_string())
+                    line
                 }
+            } else {
+                ""
+            };
+
+            // Filter unwanted components
+            if !component.is_empty() && !component.starts_with("rust-src") && !component.starts_with("rust-std") {
+                components.push(component.to_string());
             }
         }
     }
-
-    // Filter unwanted components
-    components.retain(|x| {
-        x != "rust-src" && x != "rust-std-wasm32-unknown-unknown"
-    });
 
     status!(info, "Required components: ", {
         use std::fmt::Write;
@@ -248,7 +250,8 @@ fn main() {
 
         s
     }, ".");
-    
+
+
     // Find latest version that matches the needed components
     let mut date = chrono::Utc::now() - chrono::Duration::days(offset as i64 - 1);
 
@@ -277,8 +280,8 @@ fn main() {
                 };
 
                 let mut lines = text.lines();
-                let mut components = components.clone();
-                
+                let mut remaining_components = components.clone();
+
                 'match_components: loop {
                     if let Some(line) = lines.next() {
                         if !line.starts_with("[pkg.") || !line.ends_with(']') {
@@ -295,9 +298,9 @@ fn main() {
 
                         let mut i = 0;
 
-                        while i < components.len() {
+                        while i < remaining_components.len() {
                             let remove = {
-                                let component = &components[i];
+                                let component = &remaining_components[i];
 
                                 line[5..].starts_with(component) && (
                                     (line.len() == 6 + component.len()) ||
@@ -309,9 +312,9 @@ fn main() {
                             };
 
                             if remove {
-                                components.swap_remove(i);
+                                remaining_components.swap_remove(i);
 
-                                if components.is_empty() {
+                                if remaining_components.is_empty() {
                                     break 'match_components
                                 }
                             } else {
@@ -319,7 +322,22 @@ fn main() {
                             }
                         }
                     } else {
-                        status!(info, "Some components were missing in ", &date_str, "; trying previous day...");
+                        // Log remaining components.
+                        if !verbose {
+                            continue 'main
+                        }
+
+                        if components.len() == remaining_components.len() {
+                            status!(info, "No components were available in ", &date_str, ".");
+                        } else if remaining_components.len() == 1 {
+                            status!(info, "The following component was missing in ", &date_str, ": ", remaining_components[0], ".");
+                        } else {
+                            status!(info, "The following components were missing in ", &date_str, ":");
+
+                            for component in &remaining_components {
+                                status!(info, " - ", &component, ".");
+                            }
+                        }
 
                         continue 'main
                     }
@@ -415,6 +433,7 @@ fn main() {
         status!(success, "Replaced previous toolchain ", &toolchain, " by ", &new_toolchain, ".");
     }
 }
+
 
 fn parse_toolchain(toolchain: &str) -> Result<(String, String), &'static str> {
     let hyphen = toolchain.find('-').ok_or("Invalid toolchain format.")?;
