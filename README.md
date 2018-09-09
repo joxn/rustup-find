@@ -1,5 +1,6 @@
 rustup-find
 ===========
+![Crates.io](https://img.shields.io/crates/v/rustup-find.svg)
 
 A Rust binary that automatically finds the latest version of Rust that has all
 the currently installed components.
