@@ -1,26 +1,26 @@
 #![deny(warnings)]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy))]
+#![deny(clippy::all)]
+#![allow(clippy::redundant_closure)]
 
 extern crate chrono;
 extern crate dirs;
 extern crate reqwest;
-#[macro_use]
 extern crate structopt;
 extern crate termcolor;
 
+use std::collections::HashSet;
 use std::io::Write;
 use std::path::PathBuf;
 
 use structopt::{clap::AppSettings, StructOpt};
 use termcolor::{Color, ColorChoice, ColorSpec, WriteColor};
 
-
 #[derive(StructOpt)]
-#[structopt(
-    raw(global_settings = "&[AppSettings::DisableHelpSubcommand,
-                             AppSettings::InferSubcommands,
-                             AppSettings::VersionlessSubcommands]")
-)]
+#[structopt(raw(global_settings = "&[
+    AppSettings::DisableHelpSubcommand,
+    AppSettings::InferSubcommands,
+    AppSettings::VersionlessSubcommands
+]"))]
 struct Args {
     /// Whether we should log more informations than needed.
     #[structopt(short = "v", long = "verbose")]
@@ -43,20 +43,38 @@ struct Args {
     offset: usize,
 
     /// Path to the Rustup binary.
-    #[structopt(short = "b", long = "rustup-bin", default_value = "rustup", parse(try_from_str = "parse_path"))]
+    #[structopt(
+        short = "b",
+        long = "rustup-bin",
+        default_value = "rustup",
+        parse(try_from_str = "parse_path")
+    )]
     rustup_bin: PathBuf,
 
     /// Path to the Rustup config directory.
-    #[structopt(short = "r", long = "rustup-dir", default_value = "~/.rustup", parse(try_from_str = "parse_path"))]
+    #[structopt(
+        short = "r",
+        long = "rustup-dir",
+        default_value = "~/.rustup",
+        parse(try_from_str = "parse_path")
+    )]
     rustup_dir: PathBuf,
 
     /// Target toolchain.
-    #[structopt(short = "t", long = "toolchain", parse(try_from_str = "parse_toolchain"))]
+    #[structopt(
+        short = "t",
+        long = "toolchain",
+        parse(try_from_str = "parse_toolchain")
+    )]
     toolchain: Option<(String, String)>,
 
     /// Space-separated list of components that must be available for a release to be considered valid.
     #[structopt(short = "c", long = "components")]
     components: Vec<String>,
+
+    /// Space-separated list of components to be considered preview
+    #[structopt(short = "p", long = "previews")]
+    previews_vec: Vec<String>,
 
     /// Do not try to install already installed components.
     #[structopt(short = "s", long = "skip-installed")]
@@ -64,7 +82,7 @@ struct Args {
 
     /// Command.
     #[structopt(subcommand)]
-    command: Option<Cmd>
+    command: Option<Cmd>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, StructOpt)]
@@ -83,18 +101,17 @@ enum Cmd {
     Replace {
         /// Keep previous directory as '[old-name]-old'.
         #[structopt(short = "k", long = "keep-previous")]
-        keep_old: bool
-    }
+        keep_old: bool,
+    },
 }
 
-#[cfg_attr(feature = "cargo-clippy",
-           allow(cyclomatic_complexity))] // Allows us to have macros that use the parsed arguments.
-#[cfg_attr(feature = "cargo-clippy",
-           allow(write_literal))] // Necessary for the status! macro.
+#[allow(clippy::cyclomatic_complexity)] // Allows us to have macros that use the parsed arguments.
+#[allow(clippy::write_literal)] // Necessary for the status! macro.
 fn main() {
     let Args {
         command,
         mut components,
+        previews_vec,
         days,
         no_colors,
         offset,
@@ -102,11 +119,27 @@ fn main() {
         rustup_bin,
         mut rustup_dir,
         skip_components,
-        toolchain, 
+        toolchain,
         verbose,
     } = Args::from_args();
 
-    let colors = if no_colors { ColorChoice::Never } else { ColorChoice::Auto };
+    let matches = Args::clap().get_matches();
+
+    let previews: HashSet<_> = if matches.occurrences_of("previews") > 0 {
+        previews_vec.into_iter().collect()
+    } else {
+        vec!["rustfmt".to_string(), "rls".to_string()]
+            .into_iter()
+            .collect()
+    };
+
+    let mut components_set: HashSet<_> = components.into_iter().collect();
+
+    let colors = if no_colors {
+        ColorChoice::Never
+    } else {
+        ColorChoice::Auto
+    };
 
     macro_rules! status {
         (error, $( $arg: expr ),+ ) => (
@@ -188,7 +221,6 @@ fn main() {
         );
     }
 
-
     // Find channel & target
     let (channel, target) = match toolchain {
         Some(values) => values,
@@ -197,7 +229,7 @@ fn main() {
 
             match output.lines().find(|line| line.ends_with(" (default)")) {
                 Some(line) => parse_toolchain(&line[..line.len() - 10]).unwrap(),
-                None => fail!(3, "Could not find default toolchain.")
+                None => fail!(3, "Could not find default toolchain."),
             }
         }
     };
@@ -213,18 +245,18 @@ fn main() {
 
         for line in output.lines() {
             let component = if line.ends_with(" (default)") {
-                let line = &line[.. line.len() - 10];
+                let line = &line[..line.len() - 10];
 
                 if line.ends_with(&target) {
-                    &line[.. line.len() - target.len() - 1]
+                    &line[..line.len() - target.len() - 1]
                 } else {
                     line
                 }
             } else if line.ends_with(" (installed)") {
-                let line = &line[.. line.len() - 12];
+                let line = &line[..line.len() - 12];
 
                 if line.ends_with(&target) {
-                    &line[.. line.len() - target.len() - 1]
+                    &line[..line.len() - target.len() - 1]
                 } else {
                     line
                 }
@@ -233,24 +265,33 @@ fn main() {
             };
 
             // Filter unwanted components
-            if !component.is_empty() && !component.starts_with("rust-src") && !component.starts_with("rust-std") {
-                components.push(component.to_string());
+            if !component.is_empty()
+                && !component.starts_with("rust-src")
+                && !component.starts_with("rust-std")
+            {
+                components_set.insert(component.to_string());
             }
         }
     }
 
-    status!(info, "Required components: ", {
-        use std::fmt::Write;
+    components = components_set.into_iter().collect();
 
-        let mut s = components[0].clone();
+    status!(
+        info,
+        "Required components: ",
+        {
+            use std::fmt::Write;
 
-        for component in &components[1..] {
-            let _ = write!(s, ", {}", component);
-        }
+            let mut s = components[0].clone();
 
-        s
-    }, ".");
+            for component in &components[1..] {
+                let _ = write!(s, ", {}", component);
+            }
 
+            s
+        },
+        "."
+    );
 
     // Find latest version that matches the needed components
     let mut date = chrono::Utc::now() - chrono::Duration::days(offset as i64 - 1);
@@ -266,8 +307,10 @@ fn main() {
         }
 
         let date_str = date.format("%Y-%m-%d");
-        let url = format!("https://static.rust-lang.org/dist/{}/channel-rust-{}.toml",
-                          date_str, channel);
+        let url = format!(
+            "https://static.rust-lang.org/dist/{}/channel-rust-{}.toml",
+            date_str, channel
+        );
 
         match reqwest::get(&url) {
             Ok(mut res) => {
@@ -275,7 +318,7 @@ fn main() {
                     Ok(text) => text,
                     Err(_) => {
                         status!(error, "Cannot get toolchain for ", date_str, ".");
-                        continue 'main
+                        continue 'main;
                     }
                 };
 
@@ -285,15 +328,15 @@ fn main() {
                 'match_components: loop {
                     if let Some(line) = lines.next() {
                         if !line.starts_with("[pkg.") || !line.ends_with(']') {
-                            continue
+                            continue;
                         }
 
                         if let Some(next_line) = lines.next() {
                             if next_line != "available = true" {
-                                continue
+                                continue;
                             }
                         } else {
-                            continue 'main
+                            continue 'main;
                         }
 
                         let mut i = 0;
@@ -302,21 +345,31 @@ fn main() {
                             let remove = {
                                 let component = &remaining_components[i];
 
-                                line[5..].starts_with(component) && (
-                                    (line.len() == 6 + component.len()) ||
-                                    (
-                                        line[5 + component.len() ..].starts_with(".target") &&
-                                        line[13 + component.len() ..].starts_with(&target)
-                                    )
-                                )
+                                line[5..].starts_with(component)
+                                    && ((line.len() == 6 + component.len())
+                                        || (line[5 + component.len()..].starts_with(".target")
+                                            && line[13 + component.len()..].starts_with(&target)))
                             };
 
                             if remove {
                                 remaining_components.swap_remove(i);
 
                                 if remaining_components.is_empty() {
-                                    break 'match_components
+                                    break 'match_components;
                                 }
+                            } else if previews.contains(&remaining_components[i]) {
+                                let preview_component =
+                                    format!("{}-preview", &remaining_components[i]);
+                                status!(
+                                    info,
+                                    "Component ",
+                                    &remaining_components[i],
+                                    " might still be considered a preview. Trying ",
+                                    &preview_component,
+                                    "."
+                                );
+                                remaining_components.push(preview_component);
+                                remaining_components.swap_remove(i);
                             } else {
                                 i += 1;
                             }
@@ -324,29 +377,41 @@ fn main() {
                     } else {
                         // Log remaining components.
                         if !verbose {
-                            continue 'main
+                            continue 'main;
                         }
 
                         if components.len() == remaining_components.len() {
                             status!(info, "No components were available in ", &date_str, ".");
                         } else if remaining_components.len() == 1 {
-                            status!(info, "The following component was missing in ", &date_str, ": ", remaining_components[0], ".");
+                            status!(
+                                info,
+                                "The following component was missing in ",
+                                &date_str,
+                                ": ",
+                                remaining_components[0],
+                                "."
+                            );
                         } else {
-                            status!(info, "The following components were missing in ", &date_str, ":");
+                            status!(
+                                info,
+                                "The following components were missing in ",
+                                &date_str,
+                                ":"
+                            );
 
                             for component in &remaining_components {
                                 status!(info, " - ", &component, ".");
                             }
                         }
 
-                        continue 'main
+                        continue 'main;
                     }
                 }
 
                 // All components found, return date
-                break format!("{}-{}-{}", channel, date_str, target)
-            },
-            Err(_) => continue
+                break format!("{}-{}-{}", channel, date_str, target);
+            }
+            Err(_) => continue,
         }
     };
 
@@ -355,9 +420,9 @@ fn main() {
             println!("{}", new_toolchain);
 
             std::process::exit(0);
-        },
+        }
 
-        Some(command) => command
+        Some(command) => command,
     };
 
     // Install toolchain
@@ -368,7 +433,7 @@ fn main() {
 
     if !output.status.success() {
         status!(error, "Could not install toolchain ", &new_toolchain, ":");
-        
+
         let _ = std::io::stdout().write_all(&output.stdout);
 
         std::process::exit(6);
@@ -384,11 +449,17 @@ fn main() {
 
         if keep_old {
             let r = std::fs::rename(
-                        rustup_dir.join(&toolchain),
-                        rustup_dir.join(format!("{}-old", toolchain)));
-            
+                rustup_dir.join(&toolchain),
+                rustup_dir.join(format!("{}-old", toolchain)),
+            );
+
             if r.is_err() {
-                fail!(7, "Could not move previous toolchain ", &toolchain, " to new location.")
+                fail!(
+                    7,
+                    "Could not move previous toolchain ",
+                    &toolchain,
+                    " to new location."
+                )
             }
         } else {
             let r = std::fs::remove_dir_all(rustup_dir.join(&toolchain));
@@ -401,7 +472,14 @@ fn main() {
         let r = std::fs::rename(rustup_dir.join(&new_toolchain), rustup_dir.join(&toolchain));
 
         if r.is_err() {
-            fail!(9, "Could not move toolchain ", &new_toolchain, " to new location ", &toolchain, ".");
+            fail!(
+                9,
+                "Could not move toolchain ",
+                &new_toolchain,
+                " to new location ",
+                &toolchain,
+                "."
+            );
         }
 
         // Move toolchain hash
@@ -410,35 +488,62 @@ fn main() {
 
         if keep_old {
             let r = std::fs::rename(
-                        rustup_dir.join(&toolchain),
-                        rustup_dir.join(format!("{}-old", toolchain)));
-            
+                rustup_dir.join(&toolchain),
+                rustup_dir.join(format!("{}-old", toolchain)),
+            );
+
             if r.is_err() {
-                fail!(10, "Could not move previous hashes for toolchain ", &toolchain, " to new location.")
+                fail!(
+                    10,
+                    "Could not move previous hashes for toolchain ",
+                    &toolchain,
+                    " to new location."
+                )
             }
         } else {
             let r = std::fs::remove_dir_all(rustup_dir.join(&toolchain));
 
             if r.is_err() {
-                fail!(11, "Could not remove previous hashes for toolchain ", &toolchain, ".");
+                fail!(
+                    11,
+                    "Could not remove previous hashes for toolchain ",
+                    &toolchain,
+                    "."
+                );
             }
         }
 
         let r = std::fs::rename(rustup_dir.join(&new_toolchain), rustup_dir.join(&toolchain));
 
         if r.is_err() {
-            fail!(12, "Could not move hashes of toolchain ", &new_toolchain, " to new location ", &toolchain, ".");
+            fail!(
+                12,
+                "Could not move hashes of toolchain ",
+                &new_toolchain,
+                " to new location ",
+                &toolchain,
+                "."
+            );
         }
 
-        status!(success, "Replaced previous toolchain ", &toolchain, " by ", &new_toolchain, ".");
+        status!(
+            success,
+            "Replaced previous toolchain ",
+            &toolchain,
+            " by ",
+            &new_toolchain,
+            "."
+        );
     }
 }
-
 
 fn parse_toolchain(toolchain: &str) -> Result<(String, String), &'static str> {
     let hyphen = toolchain.find('-').ok_or("Invalid toolchain format.")?;
 
-    Ok((toolchain[..hyphen].to_string(), toolchain[hyphen+1..].to_string()))
+    Ok((
+        toolchain[..hyphen].to_string(),
+        toolchain[hyphen + 1..].to_string(),
+    ))
 }
 
 fn parse_path(path: &str) -> Result<PathBuf, &'static str> {
