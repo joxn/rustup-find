@@ -110,7 +110,7 @@ enum Cmd {
 fn main() {
     let Args {
         command,
-        mut components,
+        components,
         previews_vec,
         days,
         no_colors,
@@ -123,17 +123,17 @@ fn main() {
         verbose,
     } = Args::from_args();
 
-    let matches = Args::clap().get_matches();
-
-    let previews: HashSet<_> = if matches.occurrences_of("previews") > 0 {
+    let previews: HashSet<_> = if !previews_vec.is_empty() {
         previews_vec.into_iter().collect()
     } else {
-        vec!["rustfmt".to_string(), "rls".to_string()]
-            .into_iter()
-            .collect()
+        vec![
+            "rustfmt".to_string(),
+            "rls".to_string(),
+            "clippy".to_string(),
+        ]
+        .into_iter()
+        .collect()
     };
-
-    let mut components_set: HashSet<_> = components.into_iter().collect();
 
     let colors = if no_colors {
         ColorChoice::Never
@@ -240,6 +240,21 @@ fn main() {
     status!(info, "Target: ", &target, '.');
 
     // Find needed components
+    fn get_pair_from_component(component: String) -> (String, String) {
+        let start = if component.starts_with("rust-") { 5 } else { 0 };
+        match component[start..].find('-') {
+            None => (component.to_string(), "".to_string()),
+            Some(place) => (
+                component[..place + start].to_string(),
+                component[place + start + 1..].to_string(),
+            ),
+        }
+    }
+    let mut components_set: HashSet<_> = components
+        .into_iter()
+        .map(|component| get_pair_from_component(component))
+        .collect();
+
     if !skip_components {
         let output = rustup!(output, "component", "list", "--toolchain", &toolchain);
 
@@ -269,12 +284,12 @@ fn main() {
                 && !component.starts_with("rust-src")
                 && !component.starts_with("rust-std")
             {
-                components_set.insert(component.to_string());
+                components_set.insert(get_pair_from_component(component.to_string()));
             }
         }
     }
 
-    components = components_set.into_iter().collect();
+    let component_pairs: Vec<_> = components_set.into_iter().collect();
 
     status!(
         info,
@@ -282,16 +297,30 @@ fn main() {
         {
             use std::fmt::Write;
 
-            let mut s = components[0].clone();
+            let (mut s, _) = component_pairs[0].clone();
 
-            for component in &components[1..] {
-                let _ = write!(s, ", {}", component);
+            for (name, _) in &component_pairs[1..] {
+                let _ = write!(s, ", {}", name);
             }
 
             s
         },
         "."
     );
+
+    for (component, _) in &component_pairs {
+        if previews.contains(component) {
+            let preview_component = format!("{}-preview", &component);
+            status!(
+                info,
+                "Note: ",
+                &preview_component,
+                " will be considered if ",
+                &component,
+                " is missing."
+            );
+        }
+    }
 
     // Find latest version that matches the needed components
     let mut date = chrono::Utc::now() - chrono::Duration::days(offset as i64 - 1);
@@ -322,74 +351,23 @@ fn main() {
                     }
                 };
 
-                let mut lines = text.lines();
-                let mut remaining_components = components.clone();
-
-                'match_components: loop {
-                    if let Some(line) = lines.next() {
-                        if !line.starts_with("[pkg.") || !line.ends_with(']') {
-                            continue;
-                        }
-
-                        if let Some(next_line) = lines.next() {
-                            if next_line != "available = true" {
-                                continue;
-                            }
-                        } else {
-                            continue 'main;
-                        }
-
-                        let mut i = 0;
-
-                        while i < remaining_components.len() {
-                            let remove = {
-                                let component = &remaining_components[i];
-
-                                line[5..].starts_with(component)
-                                    && ((line.len() == 6 + component.len())
-                                        || (line[5 + component.len()..].starts_with(".target")
-                                            && line[13 + component.len()..].starts_with(&target)))
-                            };
-
-                            if remove {
-                                remaining_components.swap_remove(i);
-
-                                if remaining_components.is_empty() {
-                                    break 'match_components;
-                                }
-                            } else if previews.contains(&remaining_components[i]) {
-                                let preview_component =
-                                    format!("{}-preview", &remaining_components[i]);
-                                status!(
-                                    info,
-                                    "Component ",
-                                    &remaining_components[i],
-                                    " might still be considered a preview. Trying ",
-                                    &preview_component,
-                                    "."
-                                );
-                                remaining_components.push(preview_component);
-                                remaining_components.swap_remove(i);
-                            } else {
-                                i += 1;
-                            }
-                        }
-                    } else {
-                        // Log remaining components.
+                match leftover_components(&previews, &target, &component_pairs, &text) {
+                    None => break format!("{}-{}-{}", channel, date_str, target),
+                    Some(leftovers) => {
                         if !verbose {
                             continue 'main;
                         }
 
-                        if components.len() == remaining_components.len() {
+                        if component_pairs.len() == leftovers.len() {
                             status!(info, "No components were available in ", &date_str, ".");
-                        } else if remaining_components.len() == 1 {
+                            continue 'main;
+                        }
+                        if leftovers.len() == 1 {
                             status!(
                                 info,
                                 "The following component was missing in ",
                                 &date_str,
-                                ": ",
-                                remaining_components[0],
-                                "."
+                                ": "
                             );
                         } else {
                             status!(
@@ -398,18 +376,14 @@ fn main() {
                                 &date_str,
                                 ":"
                             );
-
-                            for component in &remaining_components {
-                                status!(info, " - ", &component, ".");
-                            }
+                        }
+                        for component in &leftovers {
+                            status!(info, " - ", &(component), ".");
                         }
 
                         continue 'main;
                     }
-                }
-
-                // All components found, return date
-                break format!("{}-{}-{}", channel, date_str, target);
+                };
             }
             Err(_) => continue,
         }
@@ -554,4 +528,55 @@ fn parse_path(path: &str) -> Result<PathBuf, &'static str> {
     } else {
         Ok(PathBuf::from(path))
     }
+}
+
+fn leftover_components(
+    previews: &HashSet<String>,
+    target: &str,
+    component_pairs: &[(String, String)],
+    text: &str,
+) -> Option<Vec<String>> {
+    let mut lines = text.lines();
+    let mut rem_comp: Vec<_> = component_pairs
+        .iter()
+        .map(|(c, a)| {
+            let p = format!("[pkg.{}.target", &c);
+            let t = format!("{}-{}]", &a, &target);
+            (c.clone(), p, t)
+        })
+        .collect();
+
+    while let Some(line) = lines.next() {
+        if !line.starts_with("[pkg.") || !line.ends_with(']') {
+            continue;
+        }
+
+        match lines.next() {
+            Some("available = true") => (),
+            Some(_) => continue,
+            None => break,
+        }
+
+        let mut i = 0;
+
+        while i < rem_comp.len() {
+            let (c, p, t) = rem_comp[i].clone();
+
+            if line.starts_with(&p) && line.ends_with(&t) {
+                rem_comp.swap_remove(i);
+
+                if rem_comp.is_empty() {
+                    return None;
+                }
+            } else if previews.contains(&c) {
+                let pre_c = format!("{}-preview", &c);
+                let pre_p = format!("[pkg.{}.target.", &pre_c);
+                rem_comp.push((pre_c, pre_p, t));
+                rem_comp.swap_remove(i);
+            } else {
+                i += 1;
+            }
+        }
+    }
+    Some(rem_comp.into_iter().map(|r| r.0).collect())
 }
